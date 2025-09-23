@@ -5177,13 +5177,39 @@ ORDER BY
         );
 
         insta::assert_snapshot!(
-            "pg_set_role_show",
+            "pg_set_role_good_user",
             execute_queries_with_flags(
-                vec!["SET ROLE NONE".to_string(), "SHOW ROLE".to_string()],
+                vec!["SET ROLE good_user".to_string(), "SHOW ROLE".to_string()],
                 DatabaseProtocol::PostgreSQL
             )
             .await?
             .0
+        );
+
+        insta::assert_snapshot!(
+            "pg_set_role_none",
+            execute_queries_with_flags(
+                vec![
+                    "SET ROLE good_user".to_string(),
+                    "SET ROLE NONE".to_string(),
+                    "SHOW ROLE".to_string()
+                ],
+                DatabaseProtocol::PostgreSQL
+            )
+            .await?
+            .0
+        );
+
+        insta::assert_snapshot!(
+            "pg_set_role_bad_user",
+            execute_queries_with_flags(
+                vec!["SET ROLE bad_user".to_string()],
+                DatabaseProtocol::PostgreSQL
+            )
+            .await
+            .err()
+            .unwrap()
+            .to_string()
         );
 
         Ok(())
@@ -17697,5 +17723,18 @@ LIMIT {{ limit }}{% endif %}"#.to_string(),
                 ..Default::default()
             }
         )
+    }
+
+    #[tokio::test]
+    async fn test_pg_collation() -> Result<(), CubeError> {
+        insta::assert_snapshot!(
+            "pg_collation_PG17",
+            execute_query(
+                "SELECT * FROM pg_catalog.pg_collation ORDER BY oid".to_string(),
+                DatabaseProtocol::PostgreSQL
+            )
+            .await?
+        );
+        Ok(())
     }
 }
