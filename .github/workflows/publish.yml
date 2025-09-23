@@ -3,8 +3,8 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
-      - 'v*.*.*-*'
+      - "v*.*.*"
+      - "v*.*.*-*"
 env:
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
@@ -59,12 +59,6 @@ jobs:
         run: yarn lerna run --concurrency 1 build
         env:
           NODE_OPTIONS: --max_old_space_size=4096
-      - name: Set NPM token
-        run: echo //registry.npmjs.org/:_authToken="$NPM_TOKEN" > ~/.npmrc
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: NPM publish
-        run: ./node_modules/.bin/lerna publish from-package --yes
 
   native_linux:
     # Please use minimal possible version of ubuntu, because it produces constraint on glibc
@@ -306,7 +300,7 @@ jobs:
           overwrite: true
 
   docker-default:
-    needs: [npm, cubestore_linux, native_linux, detect_branch]
+    needs: [npm, cubestore_linux, native_linux]
     name: Debian docker image
     runs-on: ${{ matrix.os }}
     strategy:
@@ -332,7 +326,7 @@ jobs:
       - name: Prepare
         id: prep
         run: |
-          DOCKER_IMAGE=cubejs/cube
+          DOCKER_IMAGE=synergyshock/cube
           VERSION=noop
 
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -347,10 +341,6 @@ jobs:
             MINOR=${VERSION%.*}
             MAJOR=${MINOR%.*}
             TAGS="$TAGS,${DOCKER_IMAGE}:${MINOR},${DOCKER_IMAGE}:${MAJOR}"
-          fi
-
-          if [ "${{ needs['detect_branch'].outputs.is_master }}" = "true" ]; then
-            TAGS="$TAGS,${DOCKER_IMAGE}:latest"
           fi
 
           {
@@ -390,7 +380,7 @@ jobs:
             IMAGE_VERSION=${{ steps.prep.outputs.version }}
 
   docker-debian-jdk:
-    needs: [npm, cubestore_linux, native_linux, detect_branch]
+    needs: [npm, cubestore_linux, native_linux]
     name: Debian with jdk docker image
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -411,7 +401,7 @@ jobs:
       - name: Prepare
         id: prep
         run: |
-          DOCKER_IMAGE=cubejs/cube
+          DOCKER_IMAGE=synergyshock/cube
           VERSION=noop
 
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -428,10 +418,6 @@ jobs:
             TAGS="$TAGS,${DOCKER_IMAGE}:${MINOR}-jdk,${DOCKER_IMAGE}:${MAJOR}-jdk"
           elif [ "${{ github.event_name }}" = "push" ]; then
             TAGS="$TAGS,${DOCKER_IMAGE}:sha-${GITHUB_SHA::8}-jdk"
-          fi
-
-          if [ "${{ needs['detect_branch'].outputs.is_master }}" = "true" ]; then
-            TAGS="$TAGS,${DOCKER_IMAGE}:jdk"
           fi
 
           {
@@ -473,7 +459,6 @@ jobs:
   docker-cubestore:
     name: Cube Store Docker
     runs-on: ${{ matrix.os }}
-    needs: [detect_branch]
     strategy:
       fail-fast: false
       matrix:
@@ -517,7 +502,7 @@ jobs:
         env:
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          DOCKER_IMAGE=cubejs/cubestore
+          DOCKER_IMAGE=synergyshock/cubestore
           VERSION=noop
 
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -534,9 +519,7 @@ jobs:
             TAGS="$TAGS,${DOCKER_IMAGE}:${MINOR}${{ matrix.postfix }},${DOCKER_IMAGE}:${MAJOR}${{ matrix.postfix }}"
           fi
 
-          if [ "${{ needs['detect_branch'].outputs.is_master }}" = "true" ]; then
-            TAGS="$TAGS,${DOCKER_IMAGE}:${{ matrix.tag }}"
-          fi
+          TAGS="$TAGS,${DOCKER_IMAGE}:${{ matrix.tag }}"
 
           {
             echo "version=${VERSION}"
@@ -575,7 +558,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: cubejs/cubestore
+          repository: synergyshock/cubestore
           readme-filepath: ./rust/cubestore/README.md
 
   cubestore_linux:
@@ -655,182 +638,3 @@ jobs:
           asset_name: cubestored-${{ matrix.target }}.tar.gz
           tag: ${{ github.ref }}
           overwrite: true
-
-  cubestore:
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-    env:
-      RUSTFLAGS: '-Ctarget-feature=+crt-static'
-      OPENSSL_STATIC: 1
-    strategy:
-      matrix:
-        target:
-          - x86_64-pc-windows-msvc
-          - x86_64-apple-darwin
-          - aarch64-apple-darwin
-        include:
-          - target: x86_64-pc-windows-msvc
-            os: windows-2022
-            executable_name: cubestored.exe
-            strip: true
-            # cubestored.exe: CantPackException: superfluous data between sections
-            compress: false
-            tar_executable: tar
-            # Please use minimal possible version of macOS, because it produces constraint on libstdc++
-          - target: x86_64-apple-darwin
-            os: macos-13
-            executable_name: cubestored
-            # upx has been disabled because it is crashing for macOS Ventura or above! It was disabled on 2024-09-05.
-            strip: false
-            compress: false
-            # bsd tar has a different format with Sparse files which breaks download script
-            tar_executable: gtar
-          - os: macos-14
-            target: aarch64-apple-darwin
-            executable_name: cubestored
-            # upx has been disabled because it is crashing for macOS Ventura or above! It was disabled on 2024-09-05.
-            strip: false
-            compress: false
-            # bsd tar has a different format with Sparse files which breaks download script
-            tar_executable: gtar
-      fail-fast: false
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Disable rustup update (issue workaround for Windows)
-        run: rustup set auto-self-update disable
-        if: contains(runner.os, 'windows')
-        shell: bash
-      - name: Setup Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: nightly-2025-08-01
-          target: ${{ matrix.target }}
-          # override: true # this is by default on
-          rustflags: ""
-          components: rustfmt
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ./rust/cubestore -> target
-          prefix-key: v0-rust-cubestore-cross
-          key: target-${{ matrix.target }}
-      - uses: ilammy/msvc-dev-cmd@v1
-        if: ${{ startsWith(matrix.os, 'windows') }}
-      - name: Install OpenSSL for Windows
-        if: ${{ startsWith(matrix.os, 'windows') }}
-        run: vcpkg integrate install; vcpkg install openssl:x64-windows
-      - name: Instal LLVM for Windows
-        if: ${{ startsWith(matrix.os, 'windows') }}
-        run: choco install -y --force llvm --version 18.1.6
-      - name: Set Env Variables for Windows
-        uses: allenevans/set-env@v4.0.0
-        if: ${{ startsWith(matrix.os, 'windows') }}
-        with:
-          OPENSSL_DIR: 'C:/vcpkg/packages/openssl_x64-windows'
-          # This paths are required to work with static linking
-          OPENSSL_LIB_DIR: 'C:/vcpkg/packages/openssl_x64-windows/lib'
-          OPENSSL_INCLUDE_DIR: 'C:/vcpkg/packages/openssl_x64-windows/include'
-          LIBCLANG_PATH: 'C:\Program Files\LLVM\bin'
-      - name: Build with Cargo
-        run: |
-          cd rust/cubestore && cargo build --release --target=${{ matrix.target }} -p cubestore
-      - name: Compress binaries
-        uses: svenstaro/upx-action@v2
-        if: ${{ matrix.compress }}
-        with:
-          file: rust/cubestore/target/${{ matrix.target }}/release/${{ matrix.executable_name }}
-          args: --lzma
-          strip: ${{ matrix.strip }}
-      - name: Create folder for archive
-        run: |
-          mkdir cubestore-archive
-          mkdir cubestore-archive/bin
-      - name: Copy/paste OpenSSL to Archive (hotfix for Windows)
-        if: ${{ startsWith(matrix.os, 'windows') }}
-        run: cp C:/vcpkg/packages/openssl_x64-windows/bin/*.dll cubestore-archive/bin
-      - name: Create archive for release
-        run: |
-          mv rust/cubestore/target/${{ matrix.target }}/release/${{ matrix.executable_name }} cubestore-archive/bin/${{ matrix.executable_name }}
-          cd cubestore-archive
-          ${{ matrix.tar_executable }} -cvzf cubestored-${{ matrix.target }}.tar.gz ./*
-      - name: Upload Binary to Release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: cubestore-archive/cubestored-${{ matrix.target }}.tar.gz
-          asset_name: cubestored-${{ matrix.target }}.tar.gz
-          tag: ${{ github.ref }}
-          overwrite: true
-
-  trigger-test-suites:
-    name: Trigger test suites run
-    runs-on: ubuntu-24.04
-    needs: [docker-default]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Dispatch event
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_TRIGGER_TOKEN }}
-          script: |
-            const prUrl = context.payload.pull_request ? context.payload.pull_request.html_url : '';
-            const commitUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${context.sha}`;
-
-            await github.rest.actions.createWorkflowDispatch({
-              owner: 'cubedevinc',
-              repo: 'sql-api-test-suite',
-              workflow_id: 'test_and_run_test_suites.yml',
-              ref: 'main',
-              inputs: {
-                'cube-image': 'cubejs/cube:latest',
-                'source-repo': context.repo.repo,
-                'source-pr-url': prUrl,
-                'source-commit-url': commitUrl,
-                'initiator': '${{ github.actor }}'
-              }
-            })
-
-  detect_branch:
-    runs-on: ubuntu-24.04
-    outputs:
-      is_master: ${{ steps.detect_branch.outputs.is_master }}
-      branch: ${{ steps.detect_branch.outputs.branch }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Detect branch name
-        id: detect_branch
-        run: |
-          # Git & GitHub (for now) doesn't provide an easy/stable way to detect branch name from tag.
-          echo "branch=master" >> "$GITHUB_OUTPUT"
-          echo "is_master=true" >> "$GITHUB_OUTPUT"
-
-  trigger-repo-sync:
-    name: Trigger runtime repo
-    runs-on: ubuntu-24.04
-    needs: [docker-default, detect_branch]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Trigger runtime
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_TRIGGER_TOKEN }}
-          script: |
-            const tagName = process.env.GITHUB_REF.replace('refs/tags/', '');
-            const branchName = '${{ needs['detect_branch'].outputs.branch }}';
-
-            await github.rest.actions.createWorkflowDispatch({
-              owner: 'cubedevinc',
-              repo: 'cube-runtime',
-              workflow_id: 'sync.yml',
-              ref: 'master',
-              inputs: {
-                'tag': tagName,
-                'branch': branchName,
-              }
-            })
