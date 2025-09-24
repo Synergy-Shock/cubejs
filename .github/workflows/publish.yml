@@ -222,6 +222,13 @@ jobs:
             org.opencontainers.image.licenses=${{ fromJson(steps.repo.outputs.result).license.spdx_id }}
           build-args: |
             IMAGE_VERSION=${{ steps.prep.outputs.version }}
+      - name: Update repo description
+        uses: peter-evans/dockerhub-description@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: synergyshock/cube
+          readme-filepath: ./packages/cubejs-docker/README.md
 
   docker-debian-jdk:
     needs: [npm, cubestore_linux, native_linux]
@@ -367,7 +374,7 @@ jobs:
           if [[ $VERSION =~ ^v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             MINOR=${VERSION%.*}
             MAJOR=${MINOR%.*}
-          TAGS="$TAGS,${DOCKER_IMAGE}:${MINOR}${{ matrix.postfix }},${DOCKER_IMAGE}:${MAJOR}${{ matrix.postfix }},${DOCKER_IMAGE}:latest"
+          TAGS="$TAGS,${DOCKER_IMAGE}:${MINOR}${{ matrix.postfix }},${DOCKER_IMAGE}:${MAJOR}${{ matrix.postfix }}"
           fi
 
           TAGS="$TAGS,${DOCKER_IMAGE}:${{ matrix.tag }}"
@@ -545,10 +552,10 @@ jobs:
           docker tag synergyshock/cubestore:${VERSION} ${ECR_REGISTRY}/synergyshock/cubestore:${VERSION}
           docker push ${ECR_REGISTRY}/synergyshock/cubestore:${VERSION}
 
-          docker pull synergyshock/cubestore:${VERSION}-arm64v8
+          docker pull --platform linux/arm64 synergyshock/cubestore:${VERSION}-arm64v8
           docker tag synergyshock/cubestore:${VERSION}-arm64v8 ${ECR_REGISTRY}/synergyshock/cubestore:${VERSION}-arm64v8
           docker push ${ECR_REGISTRY}/synergyshock/cubestore:${VERSION}-arm64v8
 
-          docker pull synergyshock/cubestore:${VERSION}-non-avx
+          docker pull --platform linux/amd64 synergyshock/cubestore:${VERSION}-non-avx
           docker tag synergyshock/cubestore:${VERSION}-non-avx ${ECR_REGISTRY}/synergyshock/cubestore:${VERSION}-non-avx
           docker push ${ECR_REGISTRY}/synergyshock/cubestore:${VERSION}-non-avx
