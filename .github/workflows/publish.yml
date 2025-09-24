@@ -367,7 +367,7 @@ jobs:
           if [[ $VERSION =~ ^v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
             MINOR=${VERSION%.*}
             MAJOR=${MINOR%.*}
-          TAGS="$TAGS,${DOCKER_IMAGE}:${MINOR}${{ matrix.postfix }},${DOCKER_IMAGE}:${MAJOR}${{ matrix.postfix }},${DOCKER_IMAGE}:lastest"
+          TAGS="$TAGS,${DOCKER_IMAGE}:${MINOR}${{ matrix.postfix }},${DOCKER_IMAGE}:${MAJOR}${{ matrix.postfix }},${DOCKER_IMAGE}:latest"
           fi
 
           TAGS="$TAGS,${DOCKER_IMAGE}:${{ matrix.tag }}"
@@ -490,3 +490,65 @@ jobs:
           asset_name: cubestored-${{ matrix.target }}.tar.gz
           tag: ${{ github.ref }}
           overwrite: true
+
+  push-to-ecr:
+    needs: [docker-default, docker-debian-jdk, docker-cubestore]
+    name: Push images to ECR
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment:
+      name: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Prepare version
+        id: prep
+        run: |
+          VERSION=noop
+
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            VERSION=nightly
+          elif [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Pull, retag and push to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          VERSION: ${{ steps.prep.outputs.version }}
+        run: |
+          # Pull and push main cube image
+          docker pull synergyshock/cube:${VERSION}
+          docker tag synergyshock/cube:${VERSION} ${ECR_REGISTRY}/cube:${VERSION}
+          docker push ${ECR_REGISTRY}/cube:${VERSION}
+
+          # Pull and push JDK variant
+          docker pull synergyshock/cube:${VERSION}-jdk
+          docker tag synergyshock/cube:${VERSION}-jdk ${ECR_REGISTRY}/cube:${VERSION}-jdk
+          docker push ${ECR_REGISTRY}/cube:${VERSION}-jdk
+
+          # Pull and push cubestore variants
+          docker pull synergyshock/cubestore:${VERSION}
+          docker tag synergyshock/cubestore:${VERSION} ${ECR_REGISTRY}/cubestore:${VERSION}
+          docker push ${ECR_REGISTRY}/cubestore:${VERSION}
+
+          docker pull synergyshock/cubestore:${VERSION}-arm64v8
+          docker tag synergyshock/cubestore:${VERSION}-arm64v8 ${ECR_REGISTRY}/cubestore:${VERSION}-arm64v8
+          docker push ${ECR_REGISTRY}/cubestore:${VERSION}-arm64v8
+
+          docker pull synergyshock/cubestore:${VERSION}-non-avx
+          docker tag synergyshock/cubestore:${VERSION}-non-avx ${ECR_REGISTRY}/cubestore:${VERSION}-non-avx
+          docker push ${ECR_REGISTRY}/cubestore:${VERSION}-non-avx
