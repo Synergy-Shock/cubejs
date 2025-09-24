@@ -532,23 +532,23 @@ jobs:
         run: |
           # Pull and push main cube image
           docker pull synergyshock/cube:${VERSION}
-          docker tag synergyshock/cube:${VERSION} ${ECR_REGISTRY}/cube:${VERSION}
-          docker push ${ECR_REGISTRY}/cube:${VERSION}
+          docker tag synergyshock/cube:${VERSION} ${ECR_REGISTRY}synergyshock/cube:${VERSION}
+          docker push ${ECR_REGISTRY}synergyshock/cube:${VERSION}
 
           # Pull and push JDK variant
           docker pull synergyshock/cube:${VERSION}-jdk
-          docker tag synergyshock/cube:${VERSION}-jdk ${ECR_REGISTRY}/cube:${VERSION}-jdk
-          docker push ${ECR_REGISTRY}/cube:${VERSION}-jdk
+          docker tag synergyshock/cube:${VERSION}-jdk ${ECR_REGISTRY}synergyshock/cube:${VERSION}-jdk
+          docker push ${ECR_REGISTRY}synergyshock/cube:${VERSION}-jdk
 
           # Pull and push cubestore variants
           docker pull synergyshock/cubestore:${VERSION}
-          docker tag synergyshock/cubestore:${VERSION} ${ECR_REGISTRY}/cubestore:${VERSION}
-          docker push ${ECR_REGISTRY}/cubestore:${VERSION}
+          docker tag synergyshock/cubestore:${VERSION} ${ECR_REGISTRY}synergyshock/cubestore:${VERSION}
+          docker push ${ECR_REGISTRY}synergyshock/cubestore:${VERSION}
 
           docker pull synergyshock/cubestore:${VERSION}-arm64v8
-          docker tag synergyshock/cubestore:${VERSION}-arm64v8 ${ECR_REGISTRY}/cubestore:${VERSION}-arm64v8
-          docker push ${ECR_REGISTRY}/cubestore:${VERSION}-arm64v8
+          docker tag synergyshock/cubestore:${VERSION}-arm64v8 ${ECR_REGISTRY}synergyshock/cubestore:${VERSION}-arm64v8
+          docker push ${ECR_REGISTRY}synergyshock/cubestore:${VERSION}-arm64v8
 
           docker pull synergyshock/cubestore:${VERSION}-non-avx
-          docker tag synergyshock/cubestore:${VERSION}-non-avx ${ECR_REGISTRY}/cubestore:${VERSION}-non-avx
-          docker push ${ECR_REGISTRY}/cubestore:${VERSION}-non-avx
+          docker tag synergyshock/cubestore:${VERSION}-non-avx ${ECR_REGISTRY}synergyshock/cubestore:${VERSION}-non-avx
+          docker push ${ECR_REGISTRY}synergyshock/cubestore:${VERSION}-non-avx
